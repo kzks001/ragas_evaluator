@@ -4,6 +4,7 @@ from typing import List
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from loguru import logger
 
 
 class TextChunker:
@@ -51,7 +52,7 @@ class FaissVectorStore:
         """Stores the text chunks in FAISS after generating embeddings."""
         # Load existing index if it exists
         if os.path.exists(self.index_path):
-            print(f"Loading existing FAISS index from {self.index_path}.")
+            logger.info(f"Loading existing FAISS index from {self.index_path}.")
             self.vector_store = FAISS.load_local(
                 self.index_path,
                 self.embedding_model.embedding_model,
@@ -61,35 +62,35 @@ class FaissVectorStore:
             self.vector_store.add_texts(chunks)
         else:
             # Create a new index if it doesn't exist
-            print(f"Creating new FAISS index at {self.index_path}.")
+            logger.info(f"Creating new FAISS index at {self.index_path}.")
             self.vector_store = FAISS.from_texts(
                 chunks, self.embedding_model.embedding_model
             )
 
         # Save the updated index
         self.vector_store.save_local(self.index_path)
-        print(f"FAISS index updated and saved at {self.index_path}.")
+        logger.info(f"FAISS index updated and saved at {self.index_path}.")
 
     def load_index(self) -> None:
         """Loads the FAISS index from disk."""
         if os.path.exists(self.index_path):
-            print(f"Loading FAISS index from {self.index_path}.")
+            logger.info(f"Loading FAISS index from {self.index_path}.")
             self.vector_store = FAISS.load_local(
                 self.index_path,
                 self.embedding_model.embedding_model,
                 allow_dangerous_deserialization=True,
             )
         else:
-            print("FAISS index not found. Please ensure it is created and saved.")
+            logger.info("FAISS index not found. Please ensure it is created and saved.")
 
     def query_text(self, query: str, top_k: int) -> List[str]:
         """Retrieves the most relevant chunks from FAISS."""
         if self.vector_store is None:
             raise ValueError("FAISS index not loaded. Call 'load_index()' first.")
 
-        print(f"Querying FAISS index with query: {query}")
+        logger.info(f"Querying FAISS index with query: {query}")
         results = self.vector_store.similarity_search(query, k=top_k)
-        print(f"Retrieved {len(results)} results.")
+        logger.info(f"Retrieved {len(results)} results.")
         return [doc.page_content for doc in results]
 
 
@@ -106,7 +107,7 @@ class VectorStore:
         """Processes text into chunks, generates embeddings, and stores them in FAISS."""
         chunks = self.chunker.chunk_text(text)
         self.vector_store.store_text_chunks(chunks)
-        print(f"Stored {len(chunks)} text chunks in FAISS.")
+        logger.info(f"Stored {len(chunks)} text chunks in FAISS.")
 
     def retrieve_relevant_text(self, query: str, top_k: int) -> List[str]:
         """Retrieves relevant text chunks from FAISS based on a query."""

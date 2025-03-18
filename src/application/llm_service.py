@@ -1,5 +1,8 @@
-from langchain_openai import ChatOpenAI
 from typing import List, Optional
+
+from loguru import logger
+
+from langchain_openai import ChatOpenAI
 
 
 class LLMService:
@@ -30,5 +33,5 @@ class LLMService:
             return response.content if hasattr(response, "content") else str(response)
 
         except Exception as e:
-            print(f"Error generating response: {e}")
+            logger.info(f"Error generating response: {e}")
             return "An error occurred while generating the response."

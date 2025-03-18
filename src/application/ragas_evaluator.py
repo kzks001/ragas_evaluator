@@ -1,6 +1,7 @@
 from typing import List, Dict, Optional
 
 import ragas
+from loguru import logger
 from ragas import EvaluationDataset, evaluate, SingleTurnSample
 from ragas.llms import LangchainLLMWrapper
 
@@ -31,7 +32,7 @@ class RAGASEvaluator:
             dataset = []
             for query, reference in self.query_answer_pairs.items():
                 relevant_docs = self.vector_store.retrieve_relevant_text(query, top_k)
-                print(
+                logger.info(
                     f"Retrieved {len(relevant_docs)} relevant documents for query: {query}"
                 )
                 response = self.llm_service.generate_response(query, relevant_docs)
@@ -45,15 +46,15 @@ class RAGASEvaluator:
                 )
             self.evaluation_dataset = EvaluationDataset(samples=dataset)
         except Exception as e:
-            print(f"Error creating evaluation dataset: {e}")
+            logger.info(f"Error creating evaluation dataset: {e}")
 
     def evaluate(self, metrics: List[ragas.metrics]) -> Optional[Dict[str, float]]:
         try:
             if self.debug:
-                print("Evaluating with the following dataset:")
+                logger.info("Evaluating with the following dataset:")
                 for sample in self.evaluation_dataset.samples:
-                    print(sample)
-                print("Using metrics:", metrics)
+                    logger.info(sample)
+                logger.info("Using metrics:", metrics)
 
             return evaluate(
                 self.evaluation_dataset,
@@ -61,5 +62,5 @@ class RAGASEvaluator:
                 llm=self.evaluator_llm,
             )
         except Exception as e:
-            print(f"Error during evaluation: {e}")
+            logger.info(f"Error during evaluation: {e}")
             return None

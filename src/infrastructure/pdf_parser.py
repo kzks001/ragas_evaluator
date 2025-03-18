@@ -1,8 +1,10 @@
 import os
+from typing import List, Dict
+
+from loguru import logger
 import pdfplumber
 import pypdf
 import pandas as pd
-from typing import List, Dict
 
 
 class PDFParser:
@@ -40,10 +42,10 @@ if __name__ == "__main__":
     parser = PDFParser(pdf_path)
     parsed_data = parser.parse()
 
-    print("Extracted Text:")
-    print(parsed_data["text"][:1000])  # Print first 1000 characters of text
+    logger.info("Extracted Text:")
+    logger.info(parsed_data["text"][:1000])  # logger.info first 1000 characters of text
 
-    print("\nExtracted Tables:")
+    logger.info("\nExtracted Tables:")
     for idx, table in enumerate(parsed_data["tables"]):
-        print(f"\nTable {idx+1}:")
-        print(table)
+        logger.info(f"\nTable {idx+1}:")
+        logger.info(table)
