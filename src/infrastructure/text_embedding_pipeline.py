@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Dict
 
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -41,15 +41,19 @@ class FaissVectorStore:
     def __init__(
         self,
         embedding_model: EmbeddingModel,
-        index_path: str = "../ragas_evaluation/faiss_index",
+        index_path: str = "../ragas_evaluator/faiss_index",
     ) -> None:
         """Initialize FAISS store with an embedding model and index path."""
         self.embedding_model = embedding_model
         self.index_path = os.path.abspath(index_path)
         self.vector_store = None
 
-    def store_text_chunks(self, chunks: List[str]) -> None:
-        """Stores the text chunks in FAISS after generating embeddings."""
+    def store_text_chunks(self, chunks: List[str], metadata_list: List[Dict[str, str]]) -> None:
+        """Stores text chunks in FAISS with metadata."""
+        if not chunks or not metadata_list or len(chunks) != len(metadata_list):
+            logger.error("Mismatch between chunks and metadata.")
+            return
+
         # Load existing index if it exists
         if os.path.exists(self.index_path):
             logger.info(f"Loading existing FAISS index from {self.index_path}.")
@@ -58,13 +62,15 @@ class FaissVectorStore:
                 self.embedding_model.embedding_model,
                 allow_dangerous_deserialization=True,
             )
-            # Add new chunks to the existing index
-            self.vector_store.add_texts(chunks)
+            # Add new chunks with metadata
+            self.vector_store.add_texts(texts=chunks, metadatas=metadata_list)
         else:
             # Create a new index if it doesn't exist
             logger.info(f"Creating new FAISS index at {self.index_path}.")
             self.vector_store = FAISS.from_texts(
-                chunks, self.embedding_model.embedding_model
+                texts=chunks,
+                embedding=self.embedding_model.embedding_model,
+                metadatas=metadata_list,
             )
 
         # Save the updated index
@@ -83,15 +89,17 @@ class FaissVectorStore:
         else:
             logger.info("FAISS index not found. Please ensure it is created and saved.")
 
-    def query_text(self, query: str, top_k: int) -> List[str]:
-        """Retrieves the most relevant chunks from FAISS."""
+    def query_text(self, query: str, top_k: int) -> List[Dict[str, str]]:
+        """Retrieves the most relevant chunks from FAISS along with metadata."""
         if self.vector_store is None:
             raise ValueError("FAISS index not loaded. Call 'load_index()' first.")
 
         logger.info(f"Querying FAISS index with query: {query}")
         results = self.vector_store.similarity_search(query, k=top_k)
         logger.info(f"Retrieved {len(results)} results.")
-        return [doc.page_content for doc in results]
+
+        # Extract content and metadata
+        return [{"text": doc.page_content, "metadata": doc.metadata} for doc in results]
 
 
 class VectorStore:
@@ -103,14 +111,14 @@ class VectorStore:
         self.embedding_model = EmbeddingModel(api_key=api_key)
         self.vector_store = FaissVectorStore(self.embedding_model)
 
-    def process_and_store_text(self, text: str) -> None:
-        """Processes text into chunks, generates embeddings, and stores them in FAISS."""
+    def process_and_store_text(self, text: str, metadata: Dict[str, str]) -> None:
+        """Processes text into chunks, generates embeddings, and stores them in FAISS with metadata."""
         chunks = self.chunker.chunk_text(text)
-        self.vector_store.store_text_chunks(chunks)
-        logger.info(f"Stored {len(chunks)} text chunks in FAISS.")
+        metadata_list = [metadata for _ in chunks]  # Associate metadata with each chunk
+        self.vector_store.store_text_chunks(chunks, metadata_list)
+        logger.info(f"Stored {len(chunks)} text chunks in FAISS with metadata.")
 
-    def retrieve_relevant_text(self, query: str, top_k: int) -> List[str]:
-        """Retrieves relevant text chunks from FAISS based on a query."""
+    def retrieve_relevant_text(self, query: str, top_k: int) -> List[Dict[str, str]]:
+        """Retrieves relevant text chunks from FAISS along with metadata."""
         self.vector_store.load_index()
-        results = self.vector_store.query_text(query, top_k)
-        return results
+        return self.vector_store.query_text(query, top_k)
