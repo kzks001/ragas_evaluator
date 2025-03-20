@@ -1,9 +1,11 @@
 import os
+from dotenv import load_dotenv
 from loguru import logger
 
 from infrastructure.pdf_parser import PDFParser
 from infrastructure.text_embedding_pipeline import VectorStore
 
+load_dotenv("secrets.env")
 api_key = os.getenv("OPENAI_API_KEY")
 directory_path = "data/pdf_docs"  # Ensure this path points to the folder containing PDFs
 
