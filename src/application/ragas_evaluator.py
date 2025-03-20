@@ -1,9 +1,9 @@
 from typing import List, Dict, Optional
 
-import ragas
 from loguru import logger
 from ragas import EvaluationDataset, evaluate, SingleTurnSample
 from ragas.llms import LangchainLLMWrapper
+from ragas.metrics import Metric
 
 from infrastructure.text_embedding_pipeline import VectorStore
 from application.llm_service import LLMService
@@ -48,7 +48,7 @@ class RAGASEvaluator:
         except Exception as e:
             logger.info(f"Error creating evaluation dataset: {e}")
 
-    def evaluate(self, metrics: List[ragas.metrics]) -> Optional[Dict[str, float]]:
+    def evaluate(self, metrics: List[Metric]) -> Optional[Dict[str, float]]:
         try:
             if self.debug:
                 logger.info("Evaluating with the following dataset:")
