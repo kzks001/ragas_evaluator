@@ -38,15 +38,26 @@ class EmbeddingModel:
 class FaissVectorStore:
     """Handles FAISS-based vector storage and retrieval."""
 
-    def __init__(
-        self,
-        embedding_model: EmbeddingModel,
-        index_path: str = "indexes/faiss_index",
-    ) -> None:
-        """Initialize FAISS store with an embedding model and index path."""
+    def __init__(self, embedding_model: EmbeddingModel, index_path: str = None) -> None:
+        """Initialize the FAISS vector store.
+
+        Args:
+            embedding_model: Model for generating embeddings
+            index_path: Path to FAISS index. If None, uses default path
+        """
         self.embedding_model = embedding_model
-        self.index_path = os.path.abspath(index_path)
         self.vector_store = None
+        # Make index path absolute and create directory if it doesn't exist
+        if index_path:
+            self.index_path = os.path.abspath(index_path)
+        else:
+            current_dir = os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            )
+            self.index_path = os.path.join(current_dir, "indexes", "faiss_index")
+
+        os.makedirs(os.path.dirname(self.index_path), exist_ok=True)
+        logger.info(f"FAISS index path set to: {self.index_path}")
 
     def store_text_chunks(
         self, chunks: List[str], metadata_list: List[Dict[str, str]]
@@ -81,18 +92,23 @@ class FaissVectorStore:
 
     def load_index(self) -> None:
         """Loads the FAISS index from disk."""
-        if os.path.exists(self.index_path):
-            logger.info(f"Loading FAISS index from {self.index_path}.")
-            self.vector_store = FAISS.load_local(
-                self.index_path,
-                self.embedding_model.embedding_model,
-                allow_dangerous_deserialization=True,
-            )
-        else:
-            logger.info("FAISS index not found. Please ensure it is created and saved.")
+        try:
+            logger.info(f"Attempting to load FAISS index from {self.index_path}")
+            if os.path.exists(self.index_path):
+                self.vector_store = FAISS.load_local(
+                    self.index_path,
+                    self.embedding_model.embedding_model,
+                    allow_dangerous_deserialization=True,
+                )
+                logger.info("Successfully loaded FAISS index")
+            else:
+                logger.error(f"FAISS index not found at {self.index_path}")
+                logger.info("Please ensure it is created and saved.")
+        except Exception as e:
+            logger.error(f"Error loading FAISS index: {e}")
 
-    def query_text(self, query: str, top_k: int) -> List[Dict[str, str]]:
-        """Retrieves the most relevant chunks from FAISS along with metadata."""
+    def query_text(self, query: str, top_k: int) -> List[str]:
+        """Retrieves the most relevant chunks from FAISS."""
         if self.vector_store is None:
             raise ValueError("FAISS index not loaded. Call 'load_index()' first.")
 
@@ -100,8 +116,8 @@ class FaissVectorStore:
         results = self.vector_store.similarity_search(query, k=top_k)
         logger.info(f"Retrieved {len(results)} results.")
 
-        # Extract content and metadata
-        return [{"text": doc.page_content, "metadata": doc.metadata} for doc in results]
+        # Return just the text content
+        return [doc.page_content for doc in results]
 
     def list_documents(self) -> List[Dict[str, str]]:
         """Lists all documents stored in the FAISS index with their metadata."""
@@ -187,10 +203,12 @@ class VectorStore:
         self.vector_store.store_text_chunks(chunks, metadata_list)
         logger.info(f"Stored {len(chunks)} text chunks in FAISS with metadata.")
 
-    def retrieve_relevant_text(self, query: str, top_k: int) -> List[Dict[str, str]]:
+    def retrieve_relevant_text(self, query: str, top_k: int) -> List[str]:
         """Retrieves relevant text chunks from FAISS along with metadata."""
         self.vector_store.load_index()
-        return self.vector_store.query_text(query, top_k)
+        results = self.vector_store.query_text(query, top_k)
+        # Extract only the text content from the results
+        return results
 
     def list_stored_documents(self) -> List[Dict[str, str]]:
         """Lists all documents stored in the vector store."""
