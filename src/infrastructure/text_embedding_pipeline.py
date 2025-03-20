@@ -10,7 +10,7 @@ from loguru import logger
 class TextChunker:
     """Handles text preprocessing and chunking using LangChain's text splitter."""
 
-    def __init__(self, chunk_size: int = 300, chunk_overlap: int = 50) -> None:
+    def __init__(self, chunk_size: int, chunk_overlap: int) -> None:
         """Initialize the text chunker with chunk size and overlap."""
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
@@ -41,14 +41,16 @@ class FaissVectorStore:
     def __init__(
         self,
         embedding_model: EmbeddingModel,
-        index_path: str = "../ragas_evaluator/faiss_index",
+        index_path: str = "indexes/faiss_index",
     ) -> None:
         """Initialize FAISS store with an embedding model and index path."""
         self.embedding_model = embedding_model
         self.index_path = os.path.abspath(index_path)
         self.vector_store = None
 
-    def store_text_chunks(self, chunks: List[str], metadata_list: List[Dict[str, str]]) -> None:
+    def store_text_chunks(
+        self, chunks: List[str], metadata_list: List[Dict[str, str]]
+    ) -> None:
         """Stores text chunks in FAISS with metadata."""
         if not chunks or not metadata_list or len(chunks) != len(metadata_list):
             logger.error("Mismatch between chunks and metadata.")
@@ -101,13 +103,80 @@ class FaissVectorStore:
         # Extract content and metadata
         return [{"text": doc.page_content, "metadata": doc.metadata} for doc in results]
 
+    def list_documents(self) -> List[Dict[str, str]]:
+        """Lists all documents stored in the FAISS index with their metadata."""
+        if self.vector_store is None:
+            self.load_index()
+            if self.vector_store is None:
+                logger.error("No index found.")
+                return []
+
+        # Get all document ids
+        all_docs = self.vector_store.docstore._dict
+        unique_docs = {}
+
+        # Group by filename to avoid duplicates from chunks
+        for doc_id, doc in all_docs.items():
+            filename = doc.metadata.get("filename")
+            if filename and filename not in unique_docs:
+                unique_docs[filename] = {
+                    "filename": filename,
+                    "content_type": doc.metadata.get("content_type", "unknown"),
+                }
+
+        return list(unique_docs.values())
+
+    def delete_document(self, filename: str) -> bool:
+        """Deletes all chunks associated with a specific document filename.
+
+        Args:
+            filename (str): The filename to delete
+
+        Returns:
+            bool: True if document was found and deleted, False otherwise
+        """
+        if self.vector_store is None:
+            self.load_index()
+            if self.vector_store is None:
+                logger.error("No index found.")
+                return False
+
+        # Find all document ids with matching filename
+        docs_to_delete = []
+        for doc_id, doc in self.vector_store.docstore._dict.items():
+            if doc.metadata.get("filename") == filename:
+                docs_to_delete.append(doc_id)
+
+        if not docs_to_delete:
+            logger.info(f"No documents found with filename: {filename}")
+            return False
+
+        # Delete the documents
+        for doc_id in docs_to_delete:
+            del self.vector_store.docstore._dict[doc_id]
+            # Also need to delete from the index
+            self.vector_store.index_to_docstore_id.remove(doc_id)
+
+        # Save the updated index
+        self.vector_store.save_local(self.index_path)
+        logger.info(f"Deleted document: {filename}")
+        return True
+
 
 class VectorStore:
     """Orchestrates text chunking, embedding, storage, and retrieval."""
 
-    def __init__(self, api_key: str) -> None:
-        """Initialize the pipeline with OpenAI API key and FAISS index path."""
-        self.chunker = TextChunker()
+    def __init__(
+        self, api_key: str, chunk_size: int = 300, chunk_overlap: int = 50
+    ) -> None:
+        """Initialize the pipeline with OpenAI API key and FAISS index path.
+
+        Args:
+            api_key (str): OpenAI API key
+            chunk_size (int, optional): Size of text chunks. Defaults to 300.
+            chunk_overlap (int, optional): Overlap between chunks. Defaults to 50.
+        """
+        self.chunker = TextChunker(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
         self.embedding_model = EmbeddingModel(api_key=api_key)
         self.vector_store = FaissVectorStore(self.embedding_model)
 
@@ -122,3 +191,11 @@ class VectorStore:
         """Retrieves relevant text chunks from FAISS along with metadata."""
         self.vector_store.load_index()
         return self.vector_store.query_text(query, top_k)
+
+    def list_stored_documents(self) -> List[Dict[str, str]]:
+        """Lists all documents stored in the vector store."""
+        return self.vector_store.list_documents()
+
+    def delete_document(self, filename: str) -> bool:
+        """Deletes a document and all its chunks from the vector store."""
+        return self.vector_store.delete_document(filename)
