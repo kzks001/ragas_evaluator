@@ -28,24 +28,31 @@ class LLMService:
         api_key: str,
         model: str = "gpt-4o-mini-2024-07-18",
         system_prompt: PromptTemplate = SystemPrompts.DEFAULT,
+        evaluation_mode: bool = False,
     ):
-        """Initialize the LLM service with separate short-term and long-term memory.
+        """Initialize the LLM service.
 
         Args:
             api_key (str): OpenAI API key
             model (str): Model identifier
             system_prompt (PromptTemplate): System prompt template
+            evaluation_mode (bool): If True, uses evaluation mode that never asks for clarification
         """
         self.client = ChatOpenAI(api_key=api_key, model=model)
+        self.evaluation_mode = evaluation_mode
+
+        # Use evaluation prompt if in evaluation mode
+        if evaluation_mode:
+            system_prompt = SystemPrompts.EVALUATION_MODE
+
+        self.system_message = SystemMessage(content=system_prompt.content)
+        self.conversation_logger = ConversationLogger()
 
         # Memory that only tracks the last exchange when clarification is needed
         self.recent_memory = ConversationBufferMemory(return_messages=True)
 
         # Memory that stores the entire conversation history
         self.full_memory = ConversationBufferMemory(return_messages=True)
-
-        self.system_message = SystemMessage(content=system_prompt.content)
-        self.conversation_logger = ConversationLogger()
 
     def _process_response(self, response: str) -> LLMResponse:
         """Processes the LLM response and checks if clarification is needed.

@@ -31,6 +31,15 @@ class SystemPrompts:
         - You need to answer the question based on the context."""
     )
 
+    EVALUATION_MODE = PromptTemplate(
+        content="""# Role definition
+        - You are a helpful assistant that answers questions about insurance products.
+        - You must always provide a direct answer based on the available context.
+        - Do not ask for clarification even if information seems incomplete.
+        - Keep answers concise and factual.
+        - If you're not completely sure, provide the most likely answer based on available context."""
+    )
+
 
 class UserPrompts:
     """Collection of user prompt templates."""
