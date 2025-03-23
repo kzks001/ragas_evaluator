@@ -203,12 +203,12 @@ class VectorStore:
         self.vector_store.store_text_chunks(chunks, metadata_list)
         logger.info(f"Stored {len(chunks)} text chunks in FAISS with metadata.")
 
-    def retrieve_relevant_text(self, query: str, top_k: int) -> List[str]:
+    def retrieve_relevant_text(self, query: str, top_k: int) -> List[Dict[str, str]]:
         """Retrieves relevant text chunks from FAISS along with metadata."""
         self.vector_store.load_index()
-        results = self.vector_store.query_text(query, top_k)
-        # Extract only the text content from the results
-        return results
+        raw_docs = self.vector_store.query_text(query, top_k)
+        # Convert string results to dictionary format
+        return [{"text": doc} for doc in raw_docs]
 
     def list_stored_documents(self) -> List[Dict[str, str]]:
         """Lists all documents stored in the vector store."""

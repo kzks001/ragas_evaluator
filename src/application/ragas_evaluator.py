@@ -45,13 +45,17 @@ class RAGASEvaluator:
 
                 # Generate response using the text content
                 context = "\n".join(relevant_docs)
-                response = self.llm_service.generate_response(query, context)
+                llm_response = self.llm_service.generate_response(
+                    query, context, reference
+                )
+                # Extract the content string from the LLMResponse object
+                response_text = llm_response.content
 
                 dataset.append(
                     SingleTurnSample(
                         user_input=query,
-                        retrieved_contexts=relevant_docs,  # Now a list of strings
-                        response=response,
+                        retrieved_contexts=relevant_docs,
+                        response=response_text,  # Use the extracted text content
                         reference=reference,
                     )
                 )
