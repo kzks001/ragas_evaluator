@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from typing import List, Dict, Optional
 from datetime import datetime
+import pandas as pd
+from loguru import logger
 
 
 @dataclass
@@ -62,3 +64,36 @@ class ConversationLogger:
     def clear_logs(self) -> None:
         """Clear all stored logs."""
         self.logs.clear()
+
+    def save_to_csv(self, filepath: str) -> None:
+        """
+        Save conversation logs to a CSV file.
+
+        Args:
+            filepath (str): Path where the CSV file should be saved
+        """
+        if not self.logs:
+            logger.warning("No logs to save")
+            return
+
+        # Convert logs to list of dictionaries
+        log_dicts = []
+        for log in self.logs:
+            log_dict = {
+                "timestamp": log.timestamp,
+                "query": log.query,
+                "response": log.response,
+                "expected_answer": log.expected_answer,
+                # Join retrieved chunks into a single string with separator
+                "retrieved_chunks": (
+                    "|||".join(chunk["text"] for chunk in log.retrieved_chunks)
+                    if log.retrieved_chunks
+                    else ""
+                ),
+            }
+            log_dicts.append(log_dict)
+
+        # Convert to DataFrame and save
+        df = pd.DataFrame(log_dicts)
+        df.to_csv(filepath, index=False)
+        logger.info(f"Saved {len(self.logs)} conversation logs to {filepath}")
